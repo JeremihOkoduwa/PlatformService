@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PlatformService.Data;
 using PlatformService.Dtos;
 using PlatformService.Models;
+using PlatformService.SyncDataServices.Http;
 
 namespace PlatformService.Controllers
 {
@@ -12,10 +13,12 @@ namespace PlatformService.Controllers
     {
         readonly IPlatformRepo _platformRepo;
         readonly IMapper _mapper;
-        public PlatformsController(IPlatformRepo platformRepo, IMapper mapper)
+        readonly ICommandDataClient _commandDataClient;
+        public PlatformsController(IPlatformRepo platformRepo, IMapper mapper, ICommandDataClient commandDataClient)
         {
             _platformRepo = platformRepo;
             _mapper = mapper;
+            _commandDataClient = commandDataClient;
         }
 
         
@@ -40,13 +43,21 @@ namespace PlatformService.Controllers
         }
 
         [HttpPost("[action]")]
-        public ActionResult<PlatformReadDto> CreatePlatform(PlatformCreateDto platformCreateDto)
+        public async Task<ActionResult<PlatformReadDto>> CreatePlatform(PlatformCreateDto platformCreateDto)
         {
             var platformModel = _mapper.Map<Platform>(platformCreateDto);
             _platformRepo.CreatePlatform(model: platformModel);
 
             var platformDto = _mapper.Map<PlatformReadDto>(platformModel);
 
+            try
+            {
+                await _commandDataClient.SendPlatformToCommand(request: platformDto);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("an exception occured - {0}", ex.Message);
+            }
             return Created(nameof(GetPlatformById), platformCreateDto);
 
         }
